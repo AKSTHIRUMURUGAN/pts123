@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Booking</title>
+    <style>
+        .parking-space {
+            width: 100px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid black;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .empty {
+            background-color: white; /* Empty slot background color */
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            padding-left: 50px;
+            margin-top: 50px;
+            margin-bottom: 50px;
+        }
+
+        .parking-container {
+            width: 250px ;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(12, 1fr);
+            gap: 5px;
+        }
+
+        #slot-b1{
+            grid-column:1/ span 2;
+            grid-row:9; 
+            visibility:hidden; /* Empty row background color */
+        }
+        #slot-b2{
+            grid-column:2;
+            grid-row:1;
+            visibility:hidden;/* Empty row background color */
+        }
+
+        /* Add your CSS styling here */
+        .block {
+            width: 100px;
+            height: 100px;
+            margin: 10px;
+            background-color: lightblue;
+            display: inline-block;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Parking Status</h1>
+    <div class="container">
+        <div class="parking-container" id="parking-container-1">
+            <!-- Parking slots from 1 to 24 will be added here -->
+        </div>
+        <div class="parking-container" id="parking-container-2">
+            <!-- Parking slots from 25 to 48 with the 9th row as empty -->
+        </div>
+        <div class="parking-container" id="parking-container-3">
+            <!-- Parking slots from 49 to 72 with the 2nd column 1st slot as empty -->
+        </div>
+    </div>
+    <!-- Create 69 blocks -->
+    <!-- For simplicity, we'll create them using JavaScript -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        // JavaScript to create 69 blocks with unique IDs
+        function createParkingSlot(slotNumber) {
+            const parkingSpace = document.createElement('div');
+            parkingSpace.classList.add('parking-space'); // Initialize as empty slot
+            parkingSpace.id = `slot-${slotNumber}`;
+            parkingSpace.textContent = `Slot ${slotNumber}`;
+
+            // Add click event listener for payment integration
+            parkingSpace.addEventListener('click', () => {
+                const options = {
+                    key: 'rzp_test_Y20ryZhwfyvGbq', // Replace with your Razorpay API Key
+                    amount: 10000, // Replace with the actual amount in paise (e.g., 10000 for ₹100)
+                    name: 'Block Booking',
+                    description: 'Slot Reservation',
+                    image: 'your_logo.png', // Replace with your logo URL
+                    handler: function (response) {
+                        // Payment success callback
+                        const userDetails = {
+                            userId: '123', // Replace with actual user ID
+                            slotNo: parkingSpace.id.replace('slot-', ''), // Slot number corresponding to the clicked block
+                            paymentId: response.razorpay_payment_id,
+                        };
+                        saveUserDetails(userDetails);
+                        saveUserDetailsToServer(userDetails);
+                        alert('Payment Successful! User details saved.');
+                    },
+                    prefill: {
+                        name: 'John Doe', // Replace with user's name
+                        email: 'john@example.com', // Replace with user's email
+                    },
+                    notes: {
+                        slot: `Slot ${slotNumber}`,
+                    },
+                    theme: {
+                        color: '#3498db', // Replace with your preferred color
+                    },
+                };
+
+                const rzp = new Razorpay(options);
+                rzp.open();
+            });
+
+            return parkingSpace;
+        }
+        function updateParkingStatus() {
+        // Perform an AJAX request to get the updated sv list
+        fetch('/get_sv')
+            .then(response => response.json())
+            .then(data => {
+                // Clear the previous parking slots
+                document.getElementById('parking-container-1').innerHTML = '';
+                document.getElementById('parking-container-2').innerHTML = ''; 
+                document.getElementById('parking-container-3').innerHTML = '';
+                const bc1=createParkingSlot("b1");
+                document.getElementById('parking-container-2').appendChild(bc1)
+                const bc2=createParkingSlot("b2");
+                document.getElementById('parking-container-3').appendChild(bc2)
+                
+
+                // Initialize variables for counting slots and available slot numbers
+                let totalAvailableSlots = 0;
+                let totalOccupiedSlots = 0;
+                let availableSlotNumbers = [];
+
+                // Create parking slots based on the updated sv list
+                data.forEach(slot => {
+                    const parkingContainer =
+                        slot.slot <= 24 ? document.getElementById('parking-container-1') :
+                        slot.slot <= 46 ? document.getElementById('parking-container-2') :
+                        document.getElementById('parking-container-3');
+
+                    const parkingSpace = createParkingSlot(slot.slot);
+                    parkingSpace.classList.remove('empty'); // Remove empty class if it's occupied
+                    parkingSpace.classList.add(slot.status); // Add status class (free or occupied)
+                    parkingContainer.appendChild(parkingSpace);
+
+                    // Update slot counters
+                    if (slot.status === 'free') {
+                        totalAvailableSlots++;
+                        availableSlotNumbers.push(slot.slot);
+                    } else {
+                        totalOccupiedSlots++;
+                    }
+                });
+
+            });
+    }
+
+    // Periodically update parking status every 5 seconds (adjust as needed)
+    setInterval(updateParkingStatus, 5000);
+        // Function to save user details (simplified to console log)
+        function saveUserDetails(userDetails) {
+            // In a real implementation, you would send this data to your server and save it to MongoDB.
+            console.log('User Details:', userDetails);
+        }
+        // ...
+
+// Function to save user details to the server
+function saveUserDetailsToServer(userDetails) {
+    fetch('http://localhost:3000/saveUserDetails', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userDetails),
+    })
+        .then(response => response.json())
+        .then(data => {
+            console.log(data.message); // Log the server response
+        })
+        .catch(error => {
+            console.error('Error saving user details:', error);
+        });
+}
+
+// ...
+
+
+
+// Save user details to the server
+
+
+// Show an alert to the user
+alert('Payment Successful! User details saved.');
+
+    </script>
+</body>
+</html>
